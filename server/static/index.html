@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<meta name="theme-color" content="#0f1216">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="团图">
+<title>团图 · 旅行共享相册</title>
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="apple-touch-icon" href="/static/icons/icon-192.png">
+<link rel="icon" href="/static/icons/icon-192.png">
+<link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+<div id="app" v-cloak>
+
+  <!-- ============ 加入页 ============ -->
+  <div v-if="!user" class="view join-wrap">
+    <div class="join-logo">🏕️</div>
+    <div class="join-title">团 图</div>
+    <div class="join-sub">大家的照片，都在这一个盒子里</div>
+    <input type="text" v-model.trim="joinName" maxlength="20" placeholder="你的名字（如：小明）">
+    <input type="text" v-model.trim="joinCode" maxlength="12" placeholder="口令（可不填）">
+    <div class="err">{{ joinErr }}</div>
+    <button class="btn" @click="doJoin" :disabled="joining">
+      <span v-if="joining">进入中…</span><span v-else>进入相册</span>
+    </button>
+    <p class="hint center" style="margin-top:14px">
+      📲 建议先把本页「添加到主屏幕」，<br>之后就像 App 一样点开即用。
+    </p>
+  </div>
+
+  <!-- ============ 主界面 ============ -->
+  <template v-else>
+    <div class="topbar">
+      <span class="logo">🏕️</span><h1>团图</h1>
+      <div class="spacer"></div>
+      <span class="pill" v-if="status.pending > 0">
+        <span class="spin">⏳</span> 分析中 {{ status.pending }}
+      </span>
+      <span class="pill">{{ user.name }}</span>
+    </div>
+
+    <div class="main">
+      <!-- ===== 滑动选片 ===== -->
+      <div class="view" v-show="tab==='swipe'">
+        <div class="chips">
+          <button class="chip" :class="{on: dealView==='timeline'}" @click="setDealView('timeline')">🕒 时间线</button>
+          <button class="chip" :class="{on: dealView==='random'}" @click="setDealView('random')">🎲 随机</button>
+          <button class="chip" :class="{on: dealView==='mine'}" @click="setDealView('mine')">🙂 有我的</button>
+          <button class="chip" @click="tab='persons'">👥 按人物…</button>
+          <button class="chip" @click="deal()">🔄 刷新</button>
+        </div>
+
+        <!-- 批次确认 -->
+        <template v-if="batchDone">
+          <h3 style="margin:8px 2px 2px">第 {{ batch.no }} 批完成 🎉</h3>
+          <p class="hint">这批你右滑收藏了 {{ keptCards.length }} 张：</p>
+          <div class="confirm-grid" v-if="keptCards.length">
+            <img v-for="c in keptCards" :key="c.id" :src="c.thumb" loading="lazy" @click="openDetail(c)">
+          </div>
+          <div class="empty" v-else>这批一张都没收藏，直接下一批吧</div>
+          <template v-if="keptCards.length">
+            <button class="btn" v-if="canShare" @click="onSaveBtn" :disabled="savePhase===1">
+              {{ saveBtnLabel }}
+            </button>
+            <p class="hint center" style="margin-top:6px" v-if="canShare">
+              弹出分享面板后选「存储图像 / 相册」，每组 10 张
+            </p>
+            <button class="btn" v-else @click="downloadAllIndividually" :disabled="saving">
+              ⬇️ 逐张保存到手机（{{ keptCards.length }} 张）
+            </button>
+            <div style="height:10px"></div>
+            <button class="btn ghost" @click="downloadBatch">📦 打包 zip（备用）</button>
+          </template>
+          <div style="height:10px"></div>
+          <button class="btn ghost" @click="nextBatch" v-if="batch.remaining > 0 || keptCards.length">
+            拉取下一批（还剩约 {{ batch.remaining }} 张没看过）
+          </button>
+          <p class="hint center" style="margin-top:10px" v-if="batch.remaining === 0 && !keptCards.length">
+            这个视图下的照片都看完啦，换个视图或去相册逛逛吧
+          </p>
+        </template>
+
+        <!-- 卡片堆 -->
+        <template v-else>
+          <div class="progress"><i :style="{width: (batch.cards.length? (cardIdx/batch.cards.length*100):0) + '%'}"></i></div>
+          <div class="swipe-stage" v-if="curCard">
+            <div class="card card-next" v-if="nextCard">
+              <img class="photo" :src="nextCard.thumb" @error="thumbFail(nextCard)">
+              <div class="meta"><span class="who">{{ nextCard.uploader }}</span><span class="dim">摄于 {{ fmtTime(nextCard.taken_at) }}</span></div>
+            </div>
+            <div class="card" ref="cardEl" @touchstart.passive="ts" @touchmove.passive="tm" @touchend.passive="te"
+                 :style="cardStyle" @transitionend="onFlyEnd">
+              <div class="card-top">
+                <span class="tag">{{ cardIdx+1 }} / {{ batch.cards.length }} · {{ viewLabel }}</span>
+                <span class="tag" v-if="curCard.kind==='video'">🎬 视频</span>
+                <span class="tag" v-else-if="curCard.kind==='audio'">🎵 音频</span>
+                <span class="tag" v-else-if="rawLike(curCard)">RAW</span>
+              </div>
+              <img class="photo" :src="curCard.thumb" @error="thumbFail(curCard)">
+              <div class="stamp no" :style="{opacity: dx < -30 ? Math.min(1, -dx/90) : 0}">跳过</div>
+              <div class="stamp yes" :style="{opacity: dx > 30 ? Math.min(1, dx/90) : 0}">收藏</div>
+              <div class="meta">
+                <span class="who">📷 {{ curCard.uploader }}</span>
+                <span class="dim" v-if="curCard.taken_at">{{ fmtTime(curCard.taken_at) }}</span>
+                <span class="dim" v-if="curCard.duration">· {{ Math.round(curCard.duration) }}s</span>
+                <span class="spacer" style="flex:1"></span>
+                <span class="dim">❤️ {{ curCard.likes }}</span>
+              </div>
+            </div>
+          </div>
+          <div class="empty" v-else>
+            没有可发的牌了 🎉<br>换个视图，或等大家继续上传
+            <div style="height:14px"></div>
+            <button class="btn ghost" style="width:auto;padding:10px 22px" @click="deal()">刷新</button>
+          </div>
+          <div class="swipe-actions" v-if="curCard">
+            <button class="act like" :class="{on: curCard.liked}" @click="toggleLike(curCard)">❤️</button>
+            <button class="act no" @click="decide('skip')">✕</button>
+            <button class="act keep" @click="decide('keep')">⬇️</button>
+          </div>
+          <p class="hint center" style="margin-top:2px" v-if="curCard">
+            左滑跳过 · 右滑收藏 · 每满 {{ 30 }} 张确认一次下载 · 点赞全员可见
+          </p>
+        </template>
+      </div>
+
+      <!-- ===== 相册 ===== -->
+      <div class="view" v-show="tab==='gallery'">
+        <div class="chips">
+          <button class="chip" :class="{on: galView==='all'}" @click="setGalView('all')">全部</button>
+          <button class="chip" :class="{on: galView==='mine'}" @click="setGalView('mine')">🙂 有我的</button>
+          <button class="chip" :class="{on: galView==='liked'}" @click="setGalView('liked')">❤️ 被赞</button>
+          <button class="chip" @click="refreshGal()">🔄 刷新</button>
+        </div>
+        <template v-for="(day, di) in galDays" :key="day.key">
+          <div class="day-head">{{ day.label }}</div>
+          <div class="grid3">
+            <div class="cell" v-for="c in day.items" :key="c.id" @click="openDetail(c)">
+              <img v-if="c.has_thumb" :src="c.thumb" loading="lazy">
+              <img v-else :src="fallbackThumb">
+              <span class="badge" v-if="c.kind==='video'">🎬</span>
+              <span class="badge" v-else-if="c.kind==='audio'">🎵</span>
+              <span class="badge" v-else-if="rawLike(c)">RAW</span>
+              <span class="heart" v-if="c.likes">❤️{{ c.likes }}</span>
+            </div>
+          </div>
+        </template>
+        <div class="empty" v-if="!galDays.length">还没有照片，去「上传」里发第一张吧</div>
+        <div class="empty" v-if="galDays.length && !galEnd">
+          <button class="btn ghost" style="width:auto;padding:10px 24px" @click="loadGallery(true)">加载更多</button>
+        </div>
+      </div>
+
+      <!-- ===== 人物 ===== -->
+      <div class="view" v-show="tab==='persons'">
+        <p class="hint" style="margin:10px 2px">点「这是我」认领自己的脸，之后「有我的」视图只给你看你在场的照片。认领后记得点右上角人数刷新。</p>
+        <div class="pgrid">
+          <div class="pcard" v-for="p in persons" :key="p.id" @click="browsePerson(p)">
+            <img :src="p.cover" loading="lazy">
+            <div class="pname">{{ p.name || '未命名' }}</div>
+            <div class="pcount">{{ p.count }} 张 · {{ claimedName(p) }}</div>
+            <button class="claimbtn" :class="{mine: p.claimed_by_me}" @click.stop="toggleClaim(p)">
+              {{ p.claimed_by_me ? '✓ 是我' : '这是我' }}
+            </button>
+          </div>
+        </div>
+        <div class="empty" v-if="!persons.length">
+          还没识别出人物。<br>照片上传后需要几分钟在盒子里慢慢分析。
+        </div>
+      </div>
+
+      <!-- ===== 上传 ===== -->
+      <div class="view" v-show="tab==='upload'">
+        <h3 style="margin:12px 2px 4px">上传照片 / 视频</h3>
+        <p class="hint" style="margin:0 2px">支持 JPG/HEIC/RAW（CR3/NEF/ARW/DNG…）/MP4/MOV 等，重复的会自动去重。走的是盒子的局域网热点，速度很快。</p>
+        <div class="upbox" @click="pickFiles">
+          <div style="font-size:34px">📤</div>
+          <div>点这里选择文件<br>（可多选，选完自动开始传）</div>
+        </div>
+        <input type="file" ref="fileEl" multiple style="display:none" @change="onFiles">
+        <div v-if="upQueue.length" style="margin-top:10px">
+          <div class="uprow" v-for="u in upQueue">
+            <span class="nm">{{ u.name }}</span>
+            <span class="st">{{ u.status }}</span>
+          </div>
+          <div class="bar"><i :style="{width: upProgress + '%'}"></i></div>
+        </div>
+        <template v-if="upResult">
+          <h3 style="margin:18px 2px 4px">结果</h3>
+          <p class="hint" style="margin:0 2px">
+            ✅ 成功 {{ upResult.accepted.length }} 张
+            <template v-if="upResult.duplicates.length"> · ⏭️ 重复 {{ upResult.duplicates.length }} 张（已有 {{ upResult.duplicates[0].from }} 传过）</template>
+            <template v-if="upResult.rejected.length"> · 🚫 不支持 {{ upResult.rejected.length }} 个</template>
+          </p>
+        </template>
+      </div>
+
+      <!-- ===== 我的 ===== -->
+      <div class="view" v-show="tab==='me'">
+        <h3 style="margin:14px 2px 6px">{{ user.name }}</h3>
+        <p class="hint" style="margin:0 2px">
+          我传了 {{ user.uploaded }} 张 · 收藏了 {{ user.kept }} 张<br>
+          认领的脸：{{ user.claimed.length ? user.claimed.length + ' 组' : '还没认领，去「人物」页点「这是我」' }}
+        </p>
+        <div style="height:16px"></div>
+        <button class="btn ghost" @click="tab='persons'">👥 去认领我的脸</button>
+        <div style="height:10px"></div>
+        <button class="btn ghost" @click="reloadMe">🔄 刷新我的数据</button>
+        <p class="hint center" style="margin-top:22px">
+          团图 · 局域网离线共享相册<br>所有数据都在团长的盒子里，出行结束由团长统一导出
+        </p>
+      </div>
+    </div>
+
+    <div class="tabbar">
+      <button :class="{on: tab==='swipe'}" @click="tab='swipe'"><span class="ico">🃏</span>选片</button>
+      <button :class="{on: tab==='gallery'}" @click="openGallery()"><span class="ico">🖼️</span>相册</button>
+      <button :class="{on: tab==='persons'}" @click="loadPersons()"><span class="ico">👥</span>人物</button>
+      <button :class="{on: tab==='upload'}" @click="tab='upload'"><span class="ico">📤</span>上传</button>
+      <button :class="{on: tab==='me'}" @click="reloadMe()"><span class="ico">🙋</span>我的</button>
+    </div>
+
+    <!-- 详情弹层 -->
+    <div class="mask" v-if="detail" @click.self="detail=null">
+      <div class="sheet">
+        <img class="bigimg" v-if="!detailIsVideo" :src="detailSrc" @click="viewRaw(detail)">
+        <video class="bigimg" v-else :src="detailSrc" controls playsinline></video>
+        <div class="kv">
+          <button class="btn ghost" @click="toggleLike(detail)">
+            {{ detail.liked ? '❤️' : '🤍' }} {{ detail.likes }} · 点赞
+          </button>
+          <button class="btn" @click="saveOne(detail)">
+            {{ canShare ? '📲 保存到相册' : '⬇️ 下载' }}
+          </button>
+        </div>
+        <p class="hint" style="margin-top:10px">
+          📷 {{ detail.uploader }} · {{ fmtTime(detail.taken_at) || '未知时间' }}
+          <template v-if="detail.size"> · {{ (detail.size/1048576).toFixed(1) }}MB</template>
+          <br><span v-if="detail.liked_by && detail.liked_by.length">❤️ {{ detail.liked_by.join('、') }} 觉得很赞</span>
+          <span v-else>还没有人点赞</span>
+          <template v-if="!canShare && isIOS"><br>💡 下载会进「文件 › 下载」，长按图片也可以直接存储</template>
+        </p>
+      </div>
+    </div>
+  </template>
+
+  <div id="toast"></div>
+</div>
+<script src="/static/vendor/vue.global.prod.js"></script>
+<script src="/static/app.js"></script>
+</body>
+</html>

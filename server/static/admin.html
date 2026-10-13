@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0f1216">
+<title>团图 · 管理台</title>
+<link rel="stylesheet" href="/static/style.css">
+<style>
+  .cards { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; margin: 12px 0; }
+  .stat { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 12px; }
+  .stat b { display: block; font-size: 22px; }
+  .stat span { font-size: 12px; color: var(--dim); }
+  .prow { display: flex; align-items: center; gap: 10px; padding: 8px 0; border-bottom: 1px solid var(--line); }
+  .prow img { width: 46px; height: 46px; border-radius: 50%; object-fit: cover; background: var(--panel2); }
+  .prow .nm { flex: 1; font-size: 14px; }
+  .prow .dim { color: var(--dim); font-size: 12px; }
+  .mini { border: 1px solid var(--line); background: var(--panel2); color: var(--text);
+          border-radius: 8px; padding: 5px 10px; font-size: 12px; }
+  .mini.danger { color: #ff6b6b; }
+  .sec { margin-top: 22px; }
+  .sec h3 { margin: 0 2px 8px; font-size: 15px; }
+  select { background: var(--panel2); color: var(--text); border: 1px solid var(--line); border-radius: 8px; padding: 5px 8px; font-size: 12px; }
+</style>
+</head>
+<body>
+<div id="app" class="view" style="max-width:560px;margin:0 auto" v-cloak>
+
+  <template v-if="!authed">
+    <div class="join-wrap">
+      <div class="join-logo">🛠️</div>
+      <div class="join-title">团图管理台</div>
+      <div class="join-sub">只有团长的手机需要打开这个页面</div>
+      <input type="password" v-model="code" placeholder="管理口令（默认 admin，改在 config.py）"
+             @keyup.enter="login">
+      <div class="err">{{ err }}</div>
+      <button class="btn" @click="login">进入管理台</button>
+    </div>
+  </template>
+
+  <template v-else>
+    <div class="topbar" style="padding-left:0;padding-right:0">
+      <span class="logo">🛠️</span><h1>管理台</h1><div class="spacer"></div>
+      <button class="mini" @click="load">🔄 刷新</button>
+    </div>
+
+    <div class="cards" v-if="ov">
+      <div class="stat"><b>{{ ov.assets }}</b><span>照片/视频总数</span></div>
+      <div class="stat"><b>{{ ov.assets - ov.analyzed }}</b><span>待分析（后台慢慢跑）</span></div>
+      <div class="stat"><b>{{ ov.persons }}</b><span>识别出的人物</span></div>
+      <div class="stat"><b>{{ ov.users.length }}</b><span>已加入成员</span></div>
+      <div class="stat"><b>{{ fmtMB(ov.orig_bytes) }}</b><span>原片占用</span></div>
+      <div class="stat"><b>{{ fmtMB(ov.thumb_bytes) }}</b><span>缩略图占用</span></div>
+    </div>
+    <p class="hint" v-if="ov && !ov.faces_ready">⚠️ 未检测到人脸模型（models/*.onnx），「按脸」功能不可用。把手机连一次网，重跑 install 脚本即可下载。</p>
+
+    <div class="sec">
+      <h3>成员</h3>
+      <div class="prow" v-for="u in ov.users" :key="u.id">
+        <span class="nm">{{ u.name }} <span class="dim">· 传了 {{ u.uploads }} 张</span></span>
+      </div>
+    </div>
+
+    <div class="sec">
+      <h3>人物整理（合并拆错的组、给脸起名字）</h3>
+      <div class="prow" v-for="p in persons" :key="p.id">
+        <img :src="p.cover">
+        <span class="nm">
+          <input type="text" v-model="p._name" style="padding:6px 8px;font-size:13px;border-radius:8px"
+                 placeholder="未命名" @change="rename(p)">
+          <div class="dim">{{ p.count }} 张 <template v-if="p.claimed_by">· {{ p.claimed_by }} 已认领</template></div>
+        </span>
+        <select v-model="p._mergeTo" style="width:auto">
+          <option value="" disabled>并入…</option>
+          <template v-for="q in persons" :key="q.id">
+            <option v-if="q.id !== p.id" :value="q.id">{{ q.name || ('#' + q.id) }}</option>
+          </template>
+        </select>
+        <button class="mini" @click="merge(p)" :disabled="!p._mergeTo">合并</button>
+        <button class="mini danger" @click="delPerson(p)">删组</button>
+      </div>
+      <div class="empty" v-if="!persons.length">还没有识别出人物</div>
+    </div>
+
+    <div class="sec">
+      <h3>维护</h3>
+      <button class="btn ghost" @click="recluster">🔀 全量重新聚类（觉得分组乱了就点它）</button>
+      <div style="height:10px"></div>
+      <button class="btn ghost" @click="exportAll">⬇️ 导出全部原片（zip，出行结束备份用）</button>
+      <div style="height:10px"></div>
+      <button class="btn" style="background:#b3261e" @click="wipe">🗑️ 清空相册（保留成员）</button>
+    </div>
+  </template>
+  <div id="toast"></div>
+</div>
+<script src="/static/vendor/vue.global.prod.js"></script>
+<script src="/static/admin.js"></script>
+</body>
+</html>

@@ -1,0 +1,10 @@
+fastapi>=0.110
+uvicorn>=0.29
+python-multipart>=0.0.9
+pillow>=10.2
+pillow-heif>=0.13
+exifread>=3.0
+# opencv 锁 4.12：5.x 对 aarch64（手机端）没有预编译 wheel
+opencv-contrib-python==4.12.0.88
+numpy>=1.26
+zeroconf>=0.131 ; platform_system == "Linux"

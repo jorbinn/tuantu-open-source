@@ -1,0 +1,39 @@
+name: tuantu_app
+description: 团图 — 离线旅行共享相册（安卓盒子 / iOS 前台盒子与客人）
+publish_to: "none"
+version: 1.1.0+24
+
+environment:
+  sdk: ">=3.4.0 <4.0.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+  dio: ^5.4.0
+  shared_preferences: ^2.2.0
+  photo_manager: ^3.2.0
+  file_picker: ^10.0.0
+  path_provider: ^2.1.0
+  bonsoir: ^5.0.0
+  video_player: ^2.9.2
+  sqflite: ^2.3.3
+  image: ^4.3.0
+  crypto: ^3.0.3
+  path: ^1.9.0
+  mime: ^2.0.0
+  onnxruntime: ^1.4.1
+
+dev_dependencies:
+  flutter_lints: ^4.0.0
+  flutter_test:
+    sdk: flutter
+  sqflite_common_ffi: 2.3.0
+  path_provider_platform_interface: ^2.1.3
+  video_player_platform_interface: ^6.9.0
+  sqlite3: '>=2.4.0 <3.0.0'
+
+flutter:
+  uses-material-design: true
+  assets:
+    - assets/models/
+    - assets/report_scenes/

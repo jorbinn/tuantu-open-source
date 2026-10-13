@@ -1,0 +1,42 @@
+PODS:
+  - bonsoir_darwin (0.0.1):
+    - Flutter
+    - FlutterMacOS
+  - Flutter (1.0.0)
+  - onnxruntime (0.0.1):
+    - Flutter
+    - onnxruntime-objc (= 1.15.1)
+  - onnxruntime-c (1.15.1)
+  - onnxruntime-objc (1.15.1):
+    - onnxruntime-objc/Core (= 1.15.1)
+  - onnxruntime-objc/Core (1.15.1):
+    - onnxruntime-c (= 1.15.1)
+
+DEPENDENCIES:
+  - bonsoir_darwin (from `.symlinks/plugins/bonsoir_darwin/darwin`)
+  - Flutter (from `Flutter`)
+  - onnxruntime (from `.symlinks/plugins/onnxruntime/ios`)
+
+SPEC REPOS:
+  trunk:
+    - onnxruntime-c
+    - onnxruntime-objc
+
+EXTERNAL SOURCES:
+  bonsoir_darwin:
+    :path: ".symlinks/plugins/bonsoir_darwin/darwin"
+  Flutter:
+    :path: Flutter
+  onnxruntime:
+    :path: ".symlinks/plugins/onnxruntime/ios"
+
+SPEC CHECKSUMS:
+  bonsoir_darwin: e3b8526c42ca46a885142df84229131dfabea842
+  Flutter: 71a624a5bc0c04062bf19101d501e466baf2fb47
+  onnxruntime: e9346181d75b8dea8733bdae512a22c298962e00
+  onnxruntime-c: db8349c359fb15139fa4303e4e3804c9786d305a
+  onnxruntime-objc: db35a703200dc99cc2e3139d2ff6d10173e590a2
+
+PODFILE CHECKSUM: ce2a4dd764e1c7aeed6a7cdc5e61d092b6dc6d32
+
+COCOAPODS: 1.15.2

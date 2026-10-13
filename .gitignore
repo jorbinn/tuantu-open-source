@@ -1,0 +1,55 @@
+# Private runtime data and generated evidence
+data/
+output/
+tmp/
+evidence/
+test-reports/
+*.db
+*.db-*
+*.sqlite*
+*.log
+*.har
+*.xcresult/
+# Models must be licensed independently
+models/
+*.onnx
+!app/assets/models/
+!app/assets/models/README.md
+# Signing, credentials, local configuration
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p8
+*.p12
+*.pfx
+*.jks
+*.keystore
+*.mobileprovision
+key.properties
+app/config/hotspot.local.json
+app/android/local.properties
+# Build / environment
+*.apk
+*.aab
+*.ipa
+*.zip
+*.xcarchive/
+build/
+.dart_tool/
+.flutter-plugins*
+.gradle/
+.kotlin/
+Pods/
+.symlinks/
+__pycache__/
+*.pyc
+.venv/
+node_modules/
+.DS_Store
+.idea/
+*.iml
+*.bak
+* (2).*
+* (3).*
